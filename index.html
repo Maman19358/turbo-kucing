@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐱</text></svg>">
+<title>TURBO KUCING — Neon City Racer</title>
+<style>
+  :root {
+    --ink: #f4f0ff;
+    --muted: #b9a8e8;
+    --accent: #00f0ff;
+    --pink: #ff2e88;
+    --gold: #ffc93c;
+    --panel: rgba(18, 8, 31, 0.85);
+    --hairline: rgba(255, 255, 255, 0.16);
+    --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-readout: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #12081f; color: var(--ink); font-family: var(--font-ui);
+    touch-action: none; overscroll-behavior: none;
+  }
+  #game, #game canvas { position: fixed; inset: 0; display: block; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #hud[hidden] { display: none; }
+  .hud-top {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: max(12px, env(safe-area-inset-top)) 16px 0;
+  }
+  .hud-block { display: flex; flex-direction: column; gap: 2px; }
+  .hud-label { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  #score-value { font-family: var(--font-readout); font-size: 34px; font-weight: 600; line-height: 1; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+  #coin-value { font-family: var(--font-readout); font-size: 22px; color: var(--gold); text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+  #speed-value { font-family: var(--font-readout); font-size: 14px; color: var(--accent); }
+  #lives { display: flex; gap: 4px; font-size: 22px; line-height: 1; }
+  #lives .lost { opacity: 0.25; filter: grayscale(1); }
+  #combo {
+    position: absolute; left: 50%; top: 76px; transform: translateX(-50%);
+    font-family: var(--font-readout); font-size: 20px; font-weight: 700; color: var(--gold);
+    text-shadow: 0 2px 10px rgba(0,0,0,.6); opacity: 0;
+  }
+  #combo.on { opacity: 1; }
+  #boost-badge {
+    position: absolute; left: 50%; top: 110px; transform: translateX(-50%);
+    font-size: 13px; color: #bff6ff; background: rgba(0,240,255,.22);
+    border: 1px solid rgba(0,240,255,.6); padding: 3px 10px; border-radius: 999px;
+  }
+  #boost-badge[hidden] { display: none; }
+  .hud-btns { position: absolute; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; gap: 8px; pointer-events: auto; }
+  .icon-btn {
+    width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--hairline);
+    background: var(--panel); color: var(--ink); font-size: 19px; cursor: pointer;
+    display: grid; place-items: center;
+  }
+  #boost-btn {
+    position: absolute; left: 16px; bottom: max(16px, env(safe-area-inset-bottom));
+    pointer-events: auto; width: 76px; height: 76px; border-radius: 50%;
+    border: 2px solid var(--accent); background: rgba(0,240,255,.18); color: var(--accent);
+    font: inherit; font-size: 13px; font-weight: 700; letter-spacing: .06em; cursor: pointer;
+    display: grid; place-items: center; text-align: center;
+    text-shadow: 0 0 12px rgba(0,240,255,.8);
+  }
+  #boost-btn.cooling { opacity: 0.45; border-color: var(--muted); color: var(--muted); text-shadow: none; }
+  #boost-btn.active { background: var(--accent); color: #12081f; text-shadow: none; }
+
+  /* ---------- Overlays ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; display: grid; place-items: center;
+    padding: max(16px, env(safe-area-inset-top)) 20px max(16px, env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, rgba(10,4,20,.25), rgba(10,4,20,.78));
+    overflow-y: auto;
+  }
+  .overlay[hidden] { display: none; }
+  .panel {
+    width: min(480px, 100%); max-height: none; margin: auto;
+    padding: 24px; border-radius: 16px; border: 1px solid var(--hairline);
+    background: rgba(18, 8, 31, 0.93); backdrop-filter: blur(6px);
+    box-shadow: 0 24px 60px rgba(0,0,0,.45);
+  }
+  .panel h1 { margin: 0 0 4px; font-size: 34px; line-height: 1.05; letter-spacing: -0.02em; }
+  .panel h1 .turbo { color: var(--accent); }
+  .panel h1 .kucing { color: var(--pink); }
+  .panel .tagline { margin: 0 0 16px; color: var(--muted); font-size: 15px; line-height: 1.5; }
+  .btn {
+    display: block; width: 100%; padding: 14px 16px; margin-top: 8px;
+    font: inherit; font-size: 17px; font-weight: 600; text-align: center;
+    border-radius: 12px; border: 1px solid var(--accent); background: var(--accent); color: #12081f;
+    cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.secondary { background: transparent; color: var(--ink); border-color: var(--hairline); font-weight: 500; }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  .keys { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 7px; font-size: 14px; color: var(--muted); }
+  .keys li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .keys kbd {
+    min-width: 26px; padding: 2px 7px; border: 1px solid var(--hairline); border-radius: 6px;
+    font-family: var(--font-readout); font-size: 12px; color: var(--ink); text-align: center;
+    background: rgba(255,255,255,.06);
+  }
+  .best-line { margin: 12px 0 0; font-size: 14px; color: var(--muted); }
+  .best-line b { color: var(--gold); font-family: var(--font-readout); }
+  .final-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0 4px; }
+  .stat { background: rgba(255,255,255,.05); border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 12px; }
+  .stat .v { font-family: var(--font-readout); font-size: 22px; font-weight: 600; }
+  .stat .l { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .new-best {
+    display: inline-block; margin: 0 0 8px; padding: 3px 10px; border-radius: 999px;
+    background: var(--gold); color: #12081f; font-weight: 700; font-size: 13px;
+  }
+  .new-best[hidden] { display: none; }
+  .foot { margin: 16px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+  @media (max-width: 480px) {
+    .panel { padding: 20px; }
+    .panel h1 { font-size: 28px; }
+    #score-value { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud" hidden>
+  <div class="hud-top">
+    <div class="hud-block">
+      <span class="hud-label">Score</span>
+      <span id="score-value">0</span>
+      <span id="speed-value">0 km/h</span>
+    </div>
+    <div class="hud-block" style="text-align:right">
+      <span class="hud-label">Coins</span>
+      <span id="coin-value">◉ 0</span>
+      <span id="lives" aria-label="lives">❤️❤️❤️</span>
+    </div>
+  </div>
+  <div id="combo"></div>
+  <div id="boost-badge" hidden>⚡ TURBO BOOST!</div>
+  <button id="boost-btn" type="button" title="Boost (Space)">⚡<br>BOOST</button>
+  <div class="hud-btns">
+    <button class="icon-btn" id="mute-btn" type="button" title="Mute (M)">🔊</button>
+    <button class="icon-btn" id="pause-btn" type="button" title="Pause (P)">⏸</button>
+  </div>
+</div>
+
+<!-- START -->
+<div id="start-overlay" class="overlay">
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="title">
+    <h1 id="title"><span class="turbo">TURBO</span> <span class="kucing">KUCING</span> 🐱</h1>
+    <p class="tagline">A cat on a hoverboard, racing through the neon city at dusk. Dodge the traffic, grab the gold coins, hit the turbo — how far can you ride?</p>
+    <button class="btn" id="play-btn" type="button">▶&nbsp; Start Ride</button>
+    <ul class="keys">
+      <li><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> Steer &nbsp;·&nbsp; drag ◀ ▶ on touch</li>
+      <li><kbd>Space</kbd> / <kbd>⚡</kbd> Turbo boost &nbsp;·&nbsp; short cooldown</li>
+      <li><kbd>P</kbd> Pause &nbsp;·&nbsp; <kbd>M</kbd> Mute</li>
+    </ul>
+    <p class="best-line">Best score: <b id="best-start">0</b></p>
+    <p class="foot">An original game — no third-party characters, built with three.js</p>
+  </section>
+</div>
+
+<!-- PAUSE -->
+<div id="pause-overlay" class="overlay" hidden>
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+    <h1 id="pause-title">Paused</h1>
+    <p class="tagline">The city waits. The cat stretches.</p>
+    <button class="btn" id="resume-btn" type="button">▶&nbsp; Resume</button>
+    <button class="btn secondary" id="restart-btn" type="button">↻&nbsp; Restart Ride</button>
+    <button class="btn secondary" id="quit-btn" type="button">🏠&nbsp; Back to Menu</button>
+  </section>
+</div>
+
+<!-- GAME OVER -->
+<div id="over-overlay" class="overlay" hidden>
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="over-title">
+    <span class="new-best" id="new-best" hidden>★ New Best!</span>
+    <h1 id="over-title">Crash Out!</h1>
+    <p class="tagline">The hoverboard gave up. The neon city wins this time.</p>
+    <div class="final-stats">
+      <div class="stat"><div class="v" id="final-score">0</div><div class="l">Score</div></div>
+      <div class="stat"><div class="v" id="final-coins">0</div><div class="l">Coins</div></div>
+      <div class="stat"><div class="v" id="final-dist">0 m</div><div class="l">Distance</div></div>
+      <div class="stat"><div class="v" id="final-combo">×1</div><div class="l">Best Combo</div></div>
+    </div>
+    <button class="btn" id="again-btn" type="button">↻&nbsp; Ride Again</button>
+    <button class="btn secondary" id="menu-btn" type="button">🏠&nbsp; Back to Menu</button>
+  </section>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
